@@ -7,7 +7,6 @@ on:
       - hml
       - prd
 
-# Sem necessidade de id-token write pois estamos usando Client Secret
 permissions:
   contents: read
 
@@ -16,8 +15,13 @@ jobs:
     name: 'Terraform & Ansible Deploy'
     runs-on: ubuntu-latest
     
+    # Define as variáveis de ambiente injetadas automaticamente pelo azure/login ou pelos secrets
     env:
       WORKING_DIR: ${{ github.ref_name == 'dev' && 'dev' || github.ref_name == 'hml' && 'hml' || github.ref_name == 'prd' && 'prd' || 'dev' }}
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
     defaults:
       run:
@@ -28,7 +32,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Autenticação via Client Secret estruturada no formato JSON esperado pela action
       - name: Authenticate to Azure (Client Secret)
         uses: azure/login@v2
         with:

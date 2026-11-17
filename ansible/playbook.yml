@@ -1,0 +1,10 @@
+- hosts: azure_vms
+  # Eleva os privilégios para root (sudo) para executar tarefas administrativas na VM
+  become: yes
+  tasks:
+    # Atualiza o repositório de pacotes e instala o Docker no servidor remoto da Azure
+    - name: Garantir que o Docker está instalado
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes

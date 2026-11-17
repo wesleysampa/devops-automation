@@ -1,6 +1,5 @@
 name: 'CI/CD Multi-Environment Pipeline'
 
-# Define os gatilhos de execução automática da esteira (quando houver push nas branches de dev, hml ou prd)
 on:
   push:
     branches:
@@ -8,7 +7,7 @@ on:
       - hml
       - prd
 
-# Configura permissões de segurança básicas
+# Sem necessidade de id-token write pois estamos usando Client Secret
 permissions:
   contents: read
 
@@ -17,7 +16,6 @@ jobs:
     name: 'Terraform & Ansible Deploy'
     runs-on: ubuntu-latest
     
-    # Identifica dinamicamente qual diretório (pasta de ambiente) rodar com base na branch atual do Git
     env:
       WORKING_DIR: ${{ github.ref_name == 'dev' && 'dev' || github.ref_name == 'hml' && 'hml' || github.ref_name == 'prd' && 'prd' || 'dev' }}
 
@@ -27,57 +25,40 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-      # Faz o download do código-fonte do repositório para o runner do GitHub Actions
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Realiza a autenticação segura na nuvem da Azure utilizando o Client Secret cadastrado
+      # Autenticação via Client Secret estruturada no formato JSON esperado pela action
       - name: Authenticate to Azure (Client Secret)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
-      # Instala e configura a ferramenta HashiCorp Terraform no runner
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: '1.6.0'
 
-      # Inicializa o Terraform e configura os provedores e backend remoto
       - name: Terraform Init
         run: terraform init
 
-      # Valida se a formatação dos arquivos HCL está padronizada e limpa
       - name: Terraform Format
         run: terraform fmt -check
 
-      # Executa um dry-run para prever e validar todas as alterações de infraestrutura que serão feitas
       - name: Terraform Plan
         run: terraform plan -input=false
 
-      # Aplica as mudanças de infraestrutura na Azure automaticamente após o push
       - name: Terraform Apply
         if: github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
 
-      # Executa automaticamente a configuração pós-provisionamento utilizando o Ansible
       - name: Run Ansible Provisioning
         if: github.event_name == 'push'
         run: |
-          # Instala o Ansible no ambiente de execução do GitHub Actions
           sudo apt-get update && sudo apt-get install -y ansible
-          
-          # Captura dinamicamente o IP Público gerado como output pelo Terraform
           VM_IP=$(terraform output -raw public_ip_address)
-          
-          # Cria o diretório de inventário e gera o arquivo de hosts do Ansible com o IP da nova VM
           mkdir -p ../ansible/inventory
           echo "[azure_vms]" > ../ansible/inventory/hosts.ini
           echo "$VM_IP ansible_user=azureuser" >> ../ansible/inventory/hosts.ini
-          
-          # Entra na pasta do Ansible e executa o playbook para configurar a máquina remota
           cd ../ansible
           ansible-playbook -i inventory/hosts.ini playbook.yml

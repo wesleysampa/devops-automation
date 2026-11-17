@@ -62,6 +62,7 @@ jobs:
           VM_IP=$(terraform output -raw public_ip_address)
           mkdir -p ../ansible/inventory
           echo "[azure_vms]" > ../ansible/inventory/hosts.ini
-          echo "$VM_IP ansible_user=azureuser" >> ../ansible/inventory/hosts.ini
+          echo "$VM_IP ansible_user=azureuser ansible_password=SenhaForte123" >> ../ansible/inventory/hosts.ini
           cd ../ansible
+          export ANSIBLE_HOST_KEY_CHECKING=False
           ansible-playbook -i inventory/hosts.ini playbook.yml
